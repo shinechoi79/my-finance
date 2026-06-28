@@ -143,6 +143,13 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
 
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+/* 하단 모바일 네비게이션 - 기본은 숨김 */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  z-index:50;padding:6px 0 env(safe-area-inset-bottom,6px);
+}
 @media(max-width:900px){
   .sidebar{display:none;}
   .main{padding:14px 12px 80px;}
@@ -157,14 +164,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
   .tbl th,.tbl td{padding:8px 6px;font-size:12px;}
   .month-nav span{font-size:13px;min-width:90px;}
   .cf-val{font-size:16px;}
-  .bottom-nav{display:flex;}
-}
-/* 하단 모바일 네비게이션 */
-.bottom-nav{
-  display:none;
-  position:fixed;bottom:0;left:0;right:0;
-  background:var(--surface);border-top:1px solid var(--border);
-  z-index:50;padding:6px 0 env(safe-area-inset-bottom,6px);
+  .bottom-nav{display:flex !important;}
 }
 .bn-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -1551,7 +1551,8 @@ const urlInput=document.getElementById('scriptUrlInput');
 if(urlInput) urlInput.value=SCRIPT_URL;
 updateTxCats();renderAll();
 if(SCRIPT_URL){
-  loadRemote().then(loaded=>{ if(loaded) renderAll(); });
+  // 자동으로 최신 데이터 불러오기
+  downloadFromSheets().catch(()=>{});
 }
 </script>
 <!-- 모바일 하단 네비게이션 -->
@@ -1560,7 +1561,7 @@ if(SCRIPT_URL){
   <button class="bn-item" onclick="nav('cashflow')"><span class="bn-icon">📈</span><span>월별</span></button>
   <button class="bn-item" onclick="nav('ledger')"><span class="bn-icon">📋</span><span>내역</span></button>
   <button class="bn-item" onclick="nav('assets')"><span class="bn-icon">🏠</span><span>자산</span></button>
-  <button class="bn-item" onclick="nav('import')"><span class="bn-icon">📂</span><span>데이터</span></button>
+  <button class="bn-item" onclick="downloadFromSheets()"><span class="bn-icon">⬇️</span><span>불러오기</span></button>
 </nav>
 </body>
 </html>
