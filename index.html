@@ -598,7 +598,7 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
 // ═══ CONSTANTS ═══
 const SK = 'mf_v3';
 // ▼ Google Apps Script 웹앱 URL을 여기에 입력하세요
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJCB_PNpsKO5iTYTBAoq3TPyQs9aKLVYcwKyg0biM6b4hRpHCtdbqCg5rZNssQ-n4j/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypn8ckYH5CzTSUHzRVf8WtSujICZDW0dKQU3y2KSvv8xA9_Kbkv0d91L3an3QQbYbR/exec';
 const INC_CATS  = ['급여','상여금','금융수입','기타수입','용돈','임대수입'];
 const EXP_CATS  = ['생활','식비','카페/간식','교통','주거/통신','의료/건강','교육/학습','자녀/육아','문화/여가','패션/쇼핑','온라인쇼핑','자동차','뷰티/미용','술/유흥','경조/선물','여행/숙박','보험','금융','부모님','기타지출'];
 const TRF_CATS  = ['카드대금','저축','투자','이체','내계좌이체','대출','현금','기타'];
@@ -660,23 +660,31 @@ function save() {
 }
 
 // Google Sheets에서 불러오기
-async function loadRemote() {
-  if (!SCRIPT_URL) return false;
-  setSyncStatus('sync');
-  try {
-    const res = await fetch(SCRIPT_URL + '?method=GET');
-    const json = await res.json();
-    if (json.ok && json.data) {
-      D = json.data;
-      saveLocal();
-      setSyncStatus('ok');
-      return true;
-    }
-  } catch(e) {
-    console.warn('원격 불러오기 실패:', e.message);
-    setSyncStatus('err');
-  }
-  return false;
+function loadRemote() {
+  return new Promise((resolve) => {
+    if (!SCRIPT_URL) { resolve(false); return; }
+    setSyncStatus('sync');
+    const cbName = 'cb_' + Date.now();
+    window[cbName] = function(res) {
+      delete window[cbName];
+      const s = document.getElementById(cbName);
+      if (s) s.remove();
+      if (res && res.ok && res.data) {
+        D = res.data;
+        saveLocal();
+        setSyncStatus('ok');
+        resolve(true);
+      } else {
+        setSyncStatus('err');
+        resolve(false);
+      }
+    };
+    const s = document.createElement('script');
+    s.id = cbName;
+    s.src = SCRIPT_URL + '?action=read&callback=' + cbName;
+    s.onerror = () => { delete window[cbName]; s.remove(); resolve(false); };
+    document.head.appendChild(s);
+  });
 }
 
 function load() {
@@ -1476,81 +1484,68 @@ async function testConnection() {
   }
 }
 
-async function uploadToSheets() {
+function uploadToSheets() {
   if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
   if (D.transactions.length === 0 && D.assets.length === 0) {
     alert('저장할 데이터가 없습니다. 먼저 뱅크샐러드 파일을 업로드해주세요.'); return;
   }
   setSyncStatus('sync');
-  return new Promise((resolve) => {
-    try {
-      // form submit 방식으로 CORS 우회
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = SCRIPT_URL;
-      form.target = 'hidden_iframe';
-      form.style.display = 'none';
-
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'data';
-      input.value = JSON.stringify(D);
-      form.appendChild(input);
-
-      let iframe = document.getElementById('hidden_iframe');
-      if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.name = 'hidden_iframe';
-        iframe.id = 'hidden_iframe';
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-      }
-
-      iframe.onload = () => {
-        setSyncStatus('ok');
-        alert('✅ Google Sheets 저장 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건\n\n※ Google Sheets에서 새로고침하면 데이터가 보입니다.');
-        document.body.removeChild(form);
-        resolve(true);
-      };
-
-      document.body.appendChild(form);
-      form.submit();
-
-      // 10초 타임아웃
-      setTimeout(() => {
-        setSyncStatus('ok');
-        alert('✅ 전송 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건\n\nGoogle Sheets에서 확인해주세요.');
-        resolve(true);
-      }, 5000);
-
-    } catch(e) {
+  // script 태그 injection으로 CORS 완전 우회
+  const data = encodeURIComponent(JSON.stringify(D));
+  const cbName = 'cb_' + Date.now();
+  window[cbName] = function(res) {
+    delete window[cbName];
+    const s = document.getElementById(cbName);
+    if (s) s.remove();
+    if (res && res.ok) {
+      setSyncStatus('ok');
+      alert('✅ Google Sheets 저장 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
+    } else {
       setSyncStatus('err');
-      alert('❌ 오류: ' + e.message);
-      resolve(false);
+      alert('❌ 저장 실패: ' + JSON.stringify(res));
     }
-  });
+  };
+  const s = document.createElement('script');
+  s.id = cbName;
+  s.src = SCRIPT_URL + '?action=write&callback=' + cbName + '&data=' + data;
+  s.onerror = () => {
+    setSyncStatus('err');
+    alert('❌ 연결 실패. Apps Script URL을 확인해주세요.');
+    delete window[cbName];
+    s.remove();
+  };
+  document.head.appendChild(s);
 }
 
-async function downloadFromSheets() {
+function downloadFromSheets() {
   if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
   setSyncStatus('sync');
-  try {
-    const res = await fetch(SCRIPT_URL + '?method=GET');
-    const json = await res.json();
-    if (json.ok && json.data) {
-      D = json.data;
+  const cbName = 'cb_' + Date.now();
+  window[cbName] = function(res) {
+    delete window[cbName];
+    const s = document.getElementById(cbName);
+    if (s) s.remove();
+    if (res && res.ok && res.data) {
+      D = res.data;
       saveLocal();
       renderAll();
       setSyncStatus('ok');
-      alert(`✅ 불러오기 완료!\n거래 ${D.transactions.length.toLocaleString()}건, 자산 ${D.assets.length}건`);
+      alert('✅ 불러오기 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
     } else {
       setSyncStatus('err');
-      alert('❌ Google Sheets에 저장된 데이터가 없습니다.\nPC에서 먼저 데이터를 저장해주세요.');
+      alert('❌ 데이터 없음. PC에서 먼저 저장해주세요.');
     }
-  } catch(e) {
+  };
+  const s = document.createElement('script');
+  s.id = cbName;
+  s.src = SCRIPT_URL + '?action=read&callback=' + cbName;
+  s.onerror = () => {
     setSyncStatus('err');
-    alert('❌ 오류: ' + e.message);
-  }
+    alert('❌ 연결 실패.');
+    delete window[cbName];
+    s.remove();
+  };
+  document.head.appendChild(s);
 }
 
 async function manualSync() {
