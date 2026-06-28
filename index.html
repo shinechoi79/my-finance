@@ -143,7 +143,38 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
 
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
-@media(max-width:900px){.sidebar{display:none;}.main{padding:18px;}.two-col,.three-col,.cf-trio,.kpi-grid{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr;}}
+@media(max-width:900px){
+  .sidebar{display:none;}
+  .main{padding:14px 12px 80px;}
+  .two-col,.three-col,.cf-trio,.kpi-grid{grid-template-columns:1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .page-title{font-size:18px;}
+  .kpi-value{font-size:18px;}
+  .kpi-grid{gap:10px;margin-bottom:16px;}
+  .kpi{padding:14px 16px;}
+  .card{padding:16px;}
+  .page-header{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:18px;}
+  .tbl th,.tbl td{padding:8px 6px;font-size:12px;}
+  .month-nav span{font-size:13px;min-width:90px;}
+  .cf-val{font-size:16px;}
+  .bottom-nav{display:flex;}
+}
+/* 하단 모바일 네비게이션 */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:1px solid var(--border);
+  z-index:50;padding:6px 0 env(safe-area-inset-bottom,6px);
+}
+.bn-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:6px 2px;cursor:pointer;border:none;background:none;
+  color:var(--text-faint);font-size:9px;font-family:inherit;gap:3px;
+  transition:color .15s;
+}
+.bn-item.active{color:var(--accent);}
+.bn-item .bn-icon{font-size:20px;}
+.bn-item span{font-size:9px;font-weight:500;}
 </style>
 </head>
 <body>
@@ -690,10 +721,16 @@ function nav(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  // onclick 속성으로 매칭 (인덱스 계산 불필요)
+  // 사이드바 메뉴 활성화
   document.querySelectorAll('.nav-item').forEach(n=>{
     if(n.getAttribute('onclick')===`nav('${id}')`) n.classList.add('active');
   });
+  // 하단 모바일 네비 활성화
+  document.querySelectorAll('.bn-item').forEach(n=>{
+    n.classList.toggle('active', n.getAttribute('onclick')===`nav('${id}')`);
+  });
+  // 모바일에서 페이지 이동 시 맨 위로 스크롤
+  window.scrollTo(0,0);
   renderAll();
 }
 
@@ -1463,5 +1500,13 @@ if(SCRIPT_URL){
   loadRemote().then(loaded=>{ if(loaded) renderAll(); });
 }
 </script>
+<!-- 모바일 하단 네비게이션 -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bn-item active" onclick="nav('overview')"><span class="bn-icon">📊</span><span>현황</span></button>
+  <button class="bn-item" onclick="nav('cashflow')"><span class="bn-icon">📈</span><span>월별</span></button>
+  <button class="bn-item" onclick="nav('ledger')"><span class="bn-icon">📋</span><span>내역</span></button>
+  <button class="bn-item" onclick="nav('assets')"><span class="bn-icon">🏠</span><span>자산</span></button>
+  <button class="bn-item" onclick="nav('import')"><span class="bn-icon">📂</span><span>데이터</span></button>
+</nav>
 </body>
 </html>
