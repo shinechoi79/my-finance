@@ -200,7 +200,8 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
   <button class="nav-item" onclick="nav('settings')">⚙️ 설정</button>
   <div style="margin-top:auto;padding:14px 8px 0">
     <div id="syncStatus" style="font-size:11px;color:var(--text-dim);text-align:center">☁️ 로컬 저장</div>
-    <button class="btn btn-p" style="width:100%;margin-top:8px;font-size:12px" onclick="manualSync()">☁️ 지금 동기화</button>
+    <button class="btn btn-p" style="width:100%;margin-top:8px;font-size:12px" onclick="uploadToSheets()">⬆️ Sheets에 저장</button>
+    <button class="btn btn-g" style="width:100%;margin-top:6px;font-size:12px" onclick="downloadFromSheets()">⬇️ Sheets에서 불러오기</button>
   </div>
 </nav>
 
@@ -1475,11 +1476,64 @@ async function testConnection() {
   }
 }
 
+async function uploadToSheets() {
+  if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
+  if (D.transactions.length === 0 && D.assets.length === 0) {
+    alert('저장할 데이터가 없습니다. 먼저 뱅크샐러드 파일을 업로드해주세요.'); return;
+  }
+  setSyncStatus('sync');
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ data: D }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    const json = await res.json();
+    if (json.ok) {
+      setSyncStatus('ok');
+      alert(`✅ Google Sheets 저장 완료!\n거래 ${D.transactions.length.toLocaleString()}건, 자산 ${D.assets.length}건`);
+    } else {
+      setSyncStatus('err');
+      alert('❌ 저장 실패: ' + JSON.stringify(json));
+    }
+  } catch(e) {
+    setSyncStatus('err');
+    alert('❌ 오류: ' + e.message);
+  }
+}
+
+async function downloadFromSheets() {
+  if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
+  setSyncStatus('sync');
+  try {
+    const res = await fetch(SCRIPT_URL + '?method=GET');
+    const json = await res.json();
+    if (json.ok && json.data) {
+      D = json.data;
+      saveLocal();
+      renderAll();
+      setSyncStatus('ok');
+      alert(`✅ 불러오기 완료!\n거래 ${D.transactions.length.toLocaleString()}건, 자산 ${D.assets.length}건`);
+    } else {
+      setSyncStatus('err');
+      alert('❌ Google Sheets에 저장된 데이터가 없습니다.\nPC에서 먼저 데이터를 저장해주세요.');
+    }
+  } catch(e) {
+    setSyncStatus('err');
+    alert('❌ 오류: ' + e.message);
+  }
+}
+
 async function manualSync() {
   if (!SCRIPT_URL) { nav('settings'); return; }
   setSyncStatus('sync');
-  const loaded = await loadRemote();
-  if (loaded) { renderAll(); setSyncStatus('ok'); }
+  // 로컬 데이터가 있으면 먼저 저장, 없으면 불러오기
+  if (D.transactions.length > 0 || D.assets.length > 0) {
+    await saveRemote();
+  } else {
+    const loaded = await loadRemote();
+    if (loaded) { renderAll(); }
+  }
 }
 
 function resetAll(){
