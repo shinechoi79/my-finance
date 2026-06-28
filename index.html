@@ -1483,18 +1483,18 @@ async function uploadToSheets() {
   }
   setSyncStatus('sync');
   try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ data: D }),
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    // Google Apps Script는 no-cors로만 POST 가능 (CORS 제한)
+    // 대신 URL 파라미터로 데이터 전달하는 GET 방식 사용
+    const payload = encodeURIComponent(JSON.stringify({ data: D }));
+    const url = SCRIPT_URL + '?method=POST&payload=' + payload;
+    const res = await fetch(url);
     const json = await res.json();
     if (json.ok) {
       setSyncStatus('ok');
-      alert(`✅ Google Sheets 저장 완료!\n거래 ${D.transactions.length.toLocaleString()}건, 자산 ${D.assets.length}건`);
+      alert('✅ Google Sheets 저장 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
     } else {
       setSyncStatus('err');
-      alert('❌ 저장 실패: ' + JSON.stringify(json));
+      alert('❌ 저장 실패: ' + (json.error || JSON.stringify(json)));
     }
   } catch(e) {
     setSyncStatus('err');
