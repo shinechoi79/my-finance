@@ -717,14 +717,20 @@ let dark=true;
 function toggleTheme(){
   dark=!dark;
   document.body.classList.toggle('light',!dark);
-  document.getElementById('themeBtn').textContent=dark?'🌙':'☀️';
+  const icon = dark?'🌙':'☀️';
+  document.getElementById('themeBtn').textContent=icon;
+  const mobileIcon = document.getElementById('mobileThemeIcon');
+  if(mobileIcon) mobileIcon.textContent=icon;
   localStorage.setItem('theme',dark?'dark':'light');
   renderCharts();
 }
 function initTheme(){
   dark=localStorage.getItem('theme')!=='light';
   document.body.classList.toggle('light',!dark);
-  document.getElementById('themeBtn').textContent=dark?'🌙':'☀️';
+  const icon = dark?'🌙':'☀️';
+  document.getElementById('themeBtn').textContent=icon;
+  const mobileIcon = document.getElementById('mobileThemeIcon');
+  if(mobileIcon) mobileIcon.textContent=icon;
 }
 
 // ═══ NAV ═══
@@ -1550,10 +1556,8 @@ document.getElementById('fMonth').value=new Date().toISOString().slice(0,7);
 const urlInput=document.getElementById('scriptUrlInput');
 if(urlInput) urlInput.value=SCRIPT_URL;
 updateTxCats();renderAll();
-if(SCRIPT_URL){
-  // 자동으로 최신 데이터 불러오기
-  downloadFromSheets().catch(()=>{});
-}
+// 앱 시작 시 Firebase에서 자동 불러오기
+loadRemote().then(loaded => { if(loaded) renderAll(); });
 </script>
 <!-- 모바일 하단 네비게이션 -->
 <nav class="bottom-nav" id="bottomNav">
@@ -1561,7 +1565,7 @@ if(SCRIPT_URL){
   <button class="bn-item" onclick="nav('cashflow')"><span class="bn-icon">📈</span><span>월별</span></button>
   <button class="bn-item" onclick="nav('ledger')"><span class="bn-icon">📋</span><span>내역</span></button>
   <button class="bn-item" onclick="nav('assets')"><span class="bn-icon">🏠</span><span>자산</span></button>
-  <button class="bn-item" onclick="downloadFromSheets()"><span class="bn-icon">⬇️</span><span>불러오기</span></button>
+  <button class="bn-item" onclick="toggleTheme()"><span class="bn-icon" id="mobileThemeIcon">🌙</span><span>테마</span></button>
 </nav>
 </body>
 </html>
