@@ -176,6 +176,9 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
 .bn-item .bn-icon{font-size:20px;}
 .bn-item span{font-size:9px;font-weight:500;}
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -598,7 +601,19 @@ body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:var(--
 // ═══ CONSTANTS ═══
 const SK = 'mf_v3';
 // ▼ Google Apps Script 웹앱 URL을 여기에 입력하세요
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypn8ckYH5CzTSUHzRVf8WtSujICZDW0dKQU3y2KSvv8xA9_Kbkv0d91L3an3QQbYbR/exec';
+// ── Firebase 설정 ──
+const firebaseConfig = {
+  apiKey: "AIzaSyCZGJ4amEZD_nzQk3pntDiKo-yCXbuLehs",
+  authDomain: "my-finance-b193c.firebaseapp.com",
+  databaseURL: "https://my-finance-b193c-default-rtdb.firebaseio.com",
+  projectId: "my-finance-b193c",
+  storageBucket: "my-finance-b193c.firebasestorage.app",
+  messagingSenderId: "927769211136",
+  appId: "1:927769211136:web:ec2e1b19231889cfab03e5"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const DATA_REF = db.ref('finance/data');
 const INC_CATS  = ['급여','상여금','금융수입','기타수입','용돈','임대수입'];
 const EXP_CATS  = ['생활','식비','카페/간식','교통','주거/통신','의료/건강','교육/학습','자녀/육아','문화/여가','패션/쇼핑','온라인쇼핑','자동차','뷰티/미용','술/유흥','경조/선물','여행/숙박','보험','금융','부모님','기타지출'];
 const TRF_CATS  = ['카드대금','저축','투자','이체','내계좌이체','대출','현금','기타'];
@@ -635,23 +650,14 @@ function saveLocal() {
 }
 
 // Google Sheets에 저장
-async function saveRemote() {
-  if (!SCRIPT_URL || isSyncing) return;
+function saveRemote() {
+  if (isSyncing) return;
   isSyncing = true;
   setSyncStatus('sync');
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ data: D }),
-      headers: { 'Content-Type': 'text/plain' }
-    });
-    const json = await res.json();
-    if (json.ok) setSyncStatus('ok');
-    else setSyncStatus('err');
-  } catch(e) {
-    setSyncStatus('err');
-    console.warn('원격 저장 실패:', e.message);
-  } finally { isSyncing = false; }
+  DATA_REF.set(D)
+    .then(() => { setSyncStatus('ok'); })
+    .catch(e => { setSyncStatus('err'); console.warn('Firebase 저장 실패:', e.message); })
+    .finally(() => { isSyncing = false; });
 }
 
 function save() {
@@ -662,28 +668,24 @@ function save() {
 // Google Sheets에서 불러오기
 function loadRemote() {
   return new Promise((resolve) => {
-    if (!SCRIPT_URL) { resolve(false); return; }
     setSyncStatus('sync');
-    const cbName = 'cb_' + Date.now();
-    window[cbName] = function(res) {
-      delete window[cbName];
-      const s = document.getElementById(cbName);
-      if (s) s.remove();
-      if (res && res.ok && res.data) {
-        D = res.data;
-        saveLocal();
-        setSyncStatus('ok');
-        resolve(true);
-      } else {
+    DATA_REF.once('value')
+      .then(snapshot => {
+        const val = snapshot.val();
+        if (val) {
+          D = val;
+          saveLocal();
+          setSyncStatus('ok');
+          resolve(true);
+        } else {
+          setSyncStatus('err');
+          resolve(false);
+        }
+      })
+      .catch(() => {
         setSyncStatus('err');
         resolve(false);
-      }
-    };
-    const s = document.createElement('script');
-    s.id = cbName;
-    s.src = SCRIPT_URL + '?action=read&callback=' + cbName;
-    s.onerror = () => { delete window[cbName]; s.remove(); resolve(false); };
-    document.head.appendChild(s);
+      });
   });
 }
 
@@ -1485,67 +1487,41 @@ async function testConnection() {
 }
 
 function uploadToSheets() {
-  if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
   if (D.transactions.length === 0 && D.assets.length === 0) {
     alert('저장할 데이터가 없습니다. 먼저 뱅크샐러드 파일을 업로드해주세요.'); return;
   }
   setSyncStatus('sync');
-  // script 태그 injection으로 CORS 완전 우회
-  const data = encodeURIComponent(JSON.stringify(D));
-  const cbName = 'cb_' + Date.now();
-  window[cbName] = function(res) {
-    delete window[cbName];
-    const s = document.getElementById(cbName);
-    if (s) s.remove();
-    if (res && res.ok) {
+  DATA_REF.set(D)
+    .then(() => {
       setSyncStatus('ok');
-      alert('✅ Google Sheets 저장 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
-    } else {
+      alert('✅ Firebase 저장 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
+    })
+    .catch(err => {
       setSyncStatus('err');
-      alert('❌ 저장 실패: ' + JSON.stringify(res));
-    }
-  };
-  const s = document.createElement('script');
-  s.id = cbName;
-  s.src = SCRIPT_URL + '?action=write&callback=' + cbName + '&data=' + data;
-  s.onerror = () => {
-    setSyncStatus('err');
-    alert('❌ 연결 실패. Apps Script URL을 확인해주세요.');
-    delete window[cbName];
-    s.remove();
-  };
-  document.head.appendChild(s);
+      alert('❌ 저장 실패: ' + err.message);
+    });
 }
 
 function downloadFromSheets() {
-  if (!SCRIPT_URL) { alert('설정에서 Google Sheets URL을 입력해주세요'); return; }
   setSyncStatus('sync');
-  const cbName = 'cb_' + Date.now();
-  window[cbName] = function(res) {
-    delete window[cbName];
-    const s = document.getElementById(cbName);
-    if (s) s.remove();
-    if (res && res.ok && res.data) {
-      D = res.data;
-      saveLocal();
-      renderAll();
-      setSyncStatus('ok');
-      alert('✅ 불러오기 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
-    } else {
+  DATA_REF.once('value')
+    .then(snapshot => {
+      const val = snapshot.val();
+      if (val) {
+        D = val;
+        saveLocal();
+        renderAll();
+        setSyncStatus('ok');
+        alert('✅ 불러오기 완료!\n거래 ' + D.transactions.length.toLocaleString() + '건, 자산 ' + D.assets.length + '건');
+      } else {
+        setSyncStatus('err');
+        alert('❌ Firebase에 저장된 데이터가 없습니다.\nPC에서 먼저 저장해주세요.');
+      }
+    })
+    .catch(err => {
       setSyncStatus('err');
-      alert('❌ 데이터 없음. PC에서 먼저 저장해주세요.');
-    }
-  };
-  const s = document.createElement('script');
-  s.id = cbName;
-  s.src = SCRIPT_URL + '?action=read&callback=' + cbName;
-  s.onerror = () => {
-    setSyncStatus('err');
-    alert('❌ 연결 실패.');
-    delete window[cbName];
-    s.remove();
-  };
-  document.head.appendChild(s);
+      alert('❌ 오류: ' + err.message);
+    });
 }
 
 async function manualSync() {
